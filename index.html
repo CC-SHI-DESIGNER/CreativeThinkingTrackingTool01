@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>XoT Creative Thinking Tracker</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #f9f9f9; overflow: hidden; }
+        #controls { position: absolute; top: 20px; left: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); z-index: 10; }
+        .node { stroke: #fff; stroke-width: 1.5px; cursor: pointer; }
+        .link { stroke: #999; stroke-opacity: 0.4; }
+        .label { font-size: 10px; fill: #555; pointer-events: none; }
+        h3 { margin-top: 0; color: #333; }
+        #tooltip { position: absolute; padding: 10px; background: rgba(0,0,0,0.8); color: white; border-radius: 4px; display: none; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div id="controls">
+    <h3>XoT 創意追踪 UI</h3>
+    <p>數據樣本：63 份</p>
+    <p>藍色：核心主題<br>綠色：用戶原始創意<br>橙色：XoT AI 推演</p>
+</div>
+<div id="tooltip"></div>
+
+<svg width="100vw" height="100vh"></svg>
+
+<script>
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    // 模擬從 CSV 轉換過來的 JSON 數據
+    const data = {
+        nodes: [
+            { id: "Smart Wearable", group: 0, radius: 20, label: "智能穿戴設計" },
+            // 這裡模擬 63 個節點中的一部分，你可以用 Python 生成的 JSON 替換
+            ...Array.from({ length: 63 }, (_, i) => ({
+                id: `User_${i+1}`,
+                group: 1,
+                radius: 8,
+                label: `創意 #${i+1}`
+            }))
+        ],
+        links: Array.from({ length: 63 }, (_, i) => ({
+            source: "Smart Wearable",
+            target: `User_${i+1}`,
+            value: 1
+        }))
+    };
+
+    const svg = d3.select("svg");
+    const tooltip = d3.select("#tooltip");
+
+    const simulation = d3.forceSimulation(data.nodes)
+        .force("link", d3.forceLink(data.links).id(d => d.id).distance(150))
+        .force("charge", d3.forceManyBody().strength(-100))
+        .force("center", d3.forceCenter(width / 2, height / 2));
+
+    const link = svg.append("g")
+        .selectAll("line")
+        .data(data.links)
+        .join("line")
+        .attr("class", "link");
+
+    const node = svg.append("g")
+        .selectAll("circle")
+        .data(data.nodes)
+        .join("circle")
+        .attr("class", "node")
+        .attr("r", d => d.radius)
+        .attr("fill", d => d.group === 0 ? "#2196F3" : "#4CAF50")
+        .call(d3.drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended));
+
+    node.on("mouseover", (event, d) => {
+        tooltip.style("display", "block")
+            .html(`<strong>ID: ${d.id}</strong><br>狀態: 已同步<br>點擊追蹤 XoT 思維`)
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 10) + "px");
+    });
+
+    node.on("mouseout", () => tooltip.style("display", "none"));
+
+    simulation.on("tick", () => {
+        link.attr("x1", d => d.source.x)
+            .attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x)
+            .attr("y2", d => d.target.y);
+
+        node.attr("cx", d => d.x)
+            .attr("cy", d => d.y);
+    });
+
+    function dragstarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+    }
+
+    function dragged(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+    }
+
+    function dragended(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+    }
+</script>
+
+</body>
+</html>
