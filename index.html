@@ -1,83 +1,63 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <title>XoT Tracing Tool</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <style>
-        body { margin: 0; background: #010409; color: #c9d1d9; font-family: -apple-system, system-ui; display: flex; }
-        #canvas { flex: 1; height: 100vh; cursor: crosshair; }
-        #side-panel { width: 420px; background: #0d1117; border-left: 1px solid #30363d; padding: 30px; overflow-y: auto; box-shadow: -5px 0 15px rgba(0,0,0,0.5); }
-        .node { stroke: #010409; stroke-width: 1.5px; transition: 0.3s; }
-        .node:hover { stroke: #58a6ff; stroke-width: 3px; }
-        .link { stroke: #444; stroke-opacity: 0.4; stroke-width: 1px; }
-        .sketch-preview { width: 100%; border-radius: 12px; border: 2px solid #38bdf8; margin: 15px 0; display: none; }
-        .xot-node-box { background: #161b22; border-left: 4px solid #f59e0b; padding: 15px; margin-top: 15px; border-radius: 4px; }
-        .badge { background: #238636; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
-    </style>
-</head>
-<body>
-    <div id="canvas"></div>
-    <div id="side-panel">
-        <h2 id="u-name" style="color: #58a6ff;">創意追蹤控制台</h2>
-        <p id="u-status">點擊星雲中的節點以啟動 XoT 追蹤...</p>
-        <img id="u-sketch" class="sketch-preview">
-        <div id="u-details"></div>
-    </div>
+import pandas as pd
+import json
+import os
 
-    <script>
-        const width = window.innerWidth - 420;
-        const height = window.innerHeight;
+def run_xot_engine():
+    # 讀取 CSV (請確保檔案名稱正確)
+    # 我們合併兩張表的數據，這裡以 Sheet1 為主
+    try:
+        df = pd.read_csv('data/sheet1.csv', encoding='utf-8')
+    except:
+        df = pd.read_csv('data/sheet1.csv', encoding='gbk')
+    
+    nodes = [{"id": "Root", "label": "XoT 設計中心", "group": 0, "size": 30}]
+    links = []
 
-        d3.json("data.json").then(data => {
-            const svg = d3.select("#canvas").append("svg").attr("width", width).attr("height", height);
-            
-            // 1. 初始化力導向模擬
-            const simulation = d3.forceSimulation(data.nodes)
-                .force("link", d3.forceLink(data.links).id(d => d.id).distance(70))
-                .force("charge", d3.forceManyBody().strength(-150))
-                .force("center", d3.forceCenter(width / 2, height / 2));
+    # 遍歷 63 筆數據
+    for i in range(len(df)):
+        user_id = f"User_{i+1}"
+        # 提取真實數據欄位
+        name = str(df.iloc[i]['姓名'])
+        feature = str(df.iloc[i]['產品的外型特徵'])
+        items = str(df.iloc[i]['智能可穿戴產品'])
+        
+        # 1. 建立「人類原始創意節點」
+        nodes.append({
+            "id": user_id,
+            "label": name,
+            "group": 1,
+            "feature": feature,
+            "items": items,
+            "sketch": f"../sketches/{user_id}.png" # 指向圖片路徑
+        })
+        links.append({"source": "Root", "target": user_id})
 
-            // 2. 繪製邊 (Links)
-            const link = svg.append("g").selectAll("line").data(data.links).join("line").attr("class", "link");
+        # 2. XoT 思維分叉：模擬大模型基於該創意的推導
+        # 分叉 A：技術可行性推導
+        xot_a = f"{user_id}_XA"
+        nodes.append({
+            "id": xot_a,
+            "label": "技術演化",
+            "content": f"針對「{feature[:15]}...」的傳感器模組化設計方案。",
+            "group": 2
+        })
+        links.append({"source": user_id, "target": xot_a})
 
-            // 3. 繪製節點 (Nodes)
-            const node = svg.append("g").selectAll("circle").data(data.nodes).join("circle")
-                .attr("class", "node")
-                .attr("r", d => d.group === 0 ? 20 : (d.group === 1 ? 10 : 6))
-                .attr("fill", d => d.group === 0 ? "#58a6ff" : (d.group === 1 ? "#3fb950" : "#f59e0b"))
-                .on("click", (e, d) => focusOnNode(d))
-                .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
+        # 分叉 B：設計優化推導
+        xot_b = f"{user_id}_XB"
+        nodes.append({
+            "id": xot_b,
+            "label": "體驗優化",
+            "content": f"利用 XoT 框架優化的「{items.split('、')[0]}」佩戴舒適度路徑。",
+            "group": 2
+        })
+        links.append({"source": user_id, "target": xot_b})
 
-            function focusOnNode(d) {
-                if(d.group === 0) return;
-                document.getElementById("u-name").innerText = d.label;
-                document.getElementById("u-status").innerHTML = `<span class="badge">${d.group === 1 ? '人類原始創意' : 'XoT AI 演化節點'}</span>`;
-                
-                const img = document.getElementById("u-sketch");
-                const details = document.getElementById("u-details");
+    # 確保輸出目錄存在
+    if not os.path.exists('web'): os.makedirs('web')
+    with open('web/data.json', 'w', encoding='utf-8') as f:
+        json.dump({"nodes": nodes, "links": links}, f, ensure_ascii=False, indent=4)
+    print("✅ 成功：63 筆數據已轉化為 XoT 拓撲 JSON。")
 
-                if(d.group === 1) { // 顯示草圖與原始文字
-                    img.src = "../" + d.img;
-                    img.style.display = "block";
-                    details.innerHTML = `<div class="xot-node-box"><strong>設計特徵：</strong><br>${d.feature}</div>`;
-                } else { // 顯示 XoT 推理過程
-                    img.style.display = "none";
-                    details.innerHTML = `<div class="xot-node-box" style="border-left-color: #f59e0b;"><strong>XoT 推理路徑：</strong><br>${d.content}</div>`;
-                }
-            }
-
-            simulation.on("tick", () => {
-                link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
-                    .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-                node.attr("cx", d => d.x).attr("cy", d => d.y);
-            });
-        });
-
-        // 拖拽函數
-        function dragstarted(event) { if (!event.active) simulation.alphaTarget(0.3).restart(); event.subject.fx = event.subject.x; event.subject.fy = event.subject.y; }
-        function dragged(event) { event.subject.fx = event.x; event.subject.fy = event.y; }
-        function dragended(event) { if (!event.active) simulation.alphaTarget(0); event.subject.fx = null; event.subject.fy = null; }
-    </script>
-</body>
-</html>
+if __name__ == "__main__":
+    run_xot_engine()
