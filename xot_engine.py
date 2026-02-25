@@ -3,51 +3,61 @@ import json
 import os
 
 def run_xot_engine():
-    # 讀取你的 63 筆真實數據
-    df = pd.read_csv('data/survey_data.csv')
+    # 讀取 CSV (請確保檔案名稱正確)
+    # 我們合併兩張表的數據，這裡以 Sheet1 為主
+    try:
+        df = pd.read_csv('data/sheet1.csv', encoding='utf-8')
+    except:
+        df = pd.read_csv('data/sheet1.csv', encoding='gbk')
     
-    nodes = [{"id": "Center", "label": "智能穿戴設計中心", "group": 0, "size": 30}]
+    nodes = [{"id": "Root", "label": "XoT 設計中心", "group": 0, "size": 30}]
     links = []
 
-    # 模擬 XoT 的思考分叉 (Everyting of Thoughts 邏輯)
-    for i, row in df.iterrows():
+    # 遍歷 63 筆數據
+    for i in range(len(df)):
         user_id = f"User_{i+1}"
-        user_name = str(row['姓名'])
-        raw_feat = str(row['產品的外型特徵'])
+        # 提取真實數據欄位
+        name = str(df.iloc[i]['姓名'])
+        feature = str(df.iloc[i]['產品的外型特徵'])
+        items = str(df.iloc[i]['智能可穿戴產品'])
         
-        # 1. 建立人類原始節點 (Origin Node)
+        # 1. 建立「人類原始創意節點」
         nodes.append({
             "id": user_id,
-            "label": user_name,
-            "feature": raw_feat,
+            "label": name,
             "group": 1,
-            "img": f"data/sketches/{user_id}.png" # 對應你的草圖
+            "feature": feature,
+            "items": items,
+            "sketch": f"../sketches/{user_id}.png" # 指向圖片路徑
         })
-        links.append({"source": "Center", "target": user_id})
+        links.append({"source": "Root", "target": user_id})
 
-        # 2. XoT 拓撲擴展：從原始特徵推演出三個專業維度
-        # 這是論文中 "Tracing" 的關鍵點
-        xot_paths = [
-            {"type": "技術演進", "desc": f"針對 {raw_feat[:10]}... 的感測器集成方案"},
-            {"type": "用戶體驗", "desc": f"基於人體工學的 {raw_feat[:10]}... 佩戴優化"},
-            {"type": "材料創新", "desc": f"應用柔性電子技術實現 {raw_feat[:10]}..."}
-        ]
+        # 2. XoT 思維分叉：模擬大模型基於該創意的推導
+        # 分叉 A：技術可行性推導
+        xot_a = f"{user_id}_XA"
+        nodes.append({
+            "id": xot_a,
+            "label": "技術演化",
+            "content": f"針對「{feature[:15]}...」的傳感器模組化設計方案。",
+            "group": 2
+        })
+        links.append({"source": user_id, "target": xot_a})
 
-        for idx, path in enumerate(xot_paths):
-            thought_id = f"{user_id}_T{idx}"
-            nodes.append({
-                "id": thought_id,
-                "label": path['type'],
-                "content": path['desc'],
-                "group": 2 # XoT 衍生節點
-            })
-            links.append({"source": user_id, "target": thought_id})
+        # 分叉 B：設計優化推導
+        xot_b = f"{user_id}_XB"
+        nodes.append({
+            "id": xot_b,
+            "label": "體驗優化",
+            "content": f"利用 XoT 框架優化的「{items.split('、')[0]}」佩戴舒適度路徑。",
+            "group": 2
+        })
+        links.append({"source": user_id, "target": xot_b})
 
-    # 確保 web 目錄存在並寫入 JSON
+    # 確保輸出目錄存在
     if not os.path.exists('web'): os.makedirs('web')
     with open('web/data.json', 'w', encoding='utf-8') as f:
         json.dump({"nodes": nodes, "links": links}, f, ensure_ascii=False, indent=4)
-    print("✅ 63 筆數據已完成 XoT 節點化處理！")
+    print("✅ 成功：63 筆數據已轉化為 XoT 拓撲 JSON。")
 
 if __name__ == "__main__":
     run_xot_engine()
