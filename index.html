@@ -2,213 +2,88 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XoT Creative Thinking Tracking Tool</title>
+    <title>XoT Creative Thinking Tracker</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
-        :root {
-            --bg-color: #0d1117;
-            --panel-bg: #161b22;
-            --text-main: #c9d1d9;
-            --accent-blue: #58a6ff;
-            --accent-green: #3fb950;
-            --accent-orange: #f59e0b;
-        }
-
-        body {
-            margin: 0;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* 左側拓撲圖區域 */
-        #canvas-container {
-            flex: 1;
-            position: relative;
-            cursor: grab;
-        }
-
-        /* 右側多模態面板 */
-        #info-panel {
-            width: 420px;
-            background-color: var(--panel-bg);
-            border-left: 1px solid #30363d;
-            padding: 24px;
-            overflow-y: auto;
-            box-shadow: -5px 0 15px rgba(0,0,0,0.3);
-            display: flex;
-            flex-direction: column;
-        }
-
-        h2 { color: var(--accent-blue); margin-top: 0; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
-        
-        .section-title { font-weight: bold; margin-top: 20px; color: #8b949e; text-transform: uppercase; font-size: 12px; }
-        
-        .content-text { line-height: 1.6; margin-top: 8px; font-size: 14px; }
-
-        /* 草圖顯示樣式 */
-        #sketch-viewer {
-            width: 100%;
-            height: 250px;
-            background: #000;
-            border-radius: 8px;
-            margin-top: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid #30363d;
-            overflow: hidden;
-        }
-
-        #sketch-viewer img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-
-        /* XoT 節點特有樣式 */
-        .xot-card {
-            background: rgba(245, 158, 11, 0.1);
-            border-left: 4px solid var(--accent-orange);
-            padding: 12px;
-            margin-top: 15px;
-            border-radius: 4px;
-        }
-
-        /* D3 節點樣式 */
-        .link { stroke: #30363d; stroke-opacity: 0.6; stroke-width: 1.5px; }
-        .node { stroke: #fff; stroke-width: 1.5px; transition: r 0.3s; cursor: pointer; }
-        .node:hover { stroke: var(--accent-blue); stroke-width: 3px; }
+        body { margin: 0; background: #0d1117; color: #c9d1d9; font-family: sans-serif; display: flex; overflow: hidden; }
+        #canvas { flex: 1; height: 100vh; cursor: grab; }
+        #panel { width: 420px; background: #161b22; border-left: 1px solid #30363d; padding: 25px; overflow-y: auto; height: 100vh; box-sizing: border-box; }
+        .link { stroke: #444; stroke-opacity: 0.5; }
+        .node { stroke: #fff; stroke-width: 1.5px; transition: r 0.3s; }
+        .node:hover { stroke: #58a6ff; stroke-width: 3px; }
+        .sketch-box { width: 100%; border: 2px solid #38bdf8; border-radius: 12px; margin-top: 15px; display: none; background: #fff; }
+        .xot-card { background: #21262d; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px; margin-top: 15px; }
+        h2 { color: #58a6ff; margin-top: 0; }
+        .badge { background: #238636; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
     </style>
 </head>
 <body>
-
-    <div id="canvas-container"></div>
-
-    <div id="info-panel">
-        <h2 id="display-name">創意追蹤控制台</h2>
-        
-        <div id="default-msg">請點擊星雲中的節點以查看 XoT 演化路徑</div>
-
-        <div id="details-view" style="display: none;">
-            <div class="section-title">原始設計意圖 / 核心特徵</div>
-            <div id="display-feature" class="content-text"></div>
-
-            <div class="section-title">設計草圖</div>
-            <div id="sketch-viewer">
-                <img id="display-sketch" src="" alt="設計草圖加載中...">
-            </div>
-
-            <div class="section-title">XoT 思維分叉推演</div>
-            <div id="display-xot" class="xot-card"></div>
-        </div>
+    <div id="canvas"></div>
+    <div id="panel">
+        <h2 id="p-name">智能穿戴創意星雲</h2>
+        <p id="p-status">請點擊任意節點開始追蹤思維路徑</p>
+        <div id="p-details"></div>
+        <img id="p-sketch" class="sketch-box" alt="設計草圖">
     </div>
 
-<script>
-    const width = window.innerWidth - 420;
-    const height = window.innerHeight;
+    <script>
+        const width = window.innerWidth - 420;
+        const height = window.innerHeight;
 
-    // 1. 初始化 SVG
-    const svg = d3.select("#canvas-container")
-        .append("svg")
-        .attr("width", width)
-        .attr("height", height);
+        // 加載數據
+        d3.json("data.json").then(data => {
+            const svg = d3.select("#canvas").append("svg").attr("width", width).attr("height", height);
+            const container = svg.append("g");
 
-    const g = svg.append("g"); // 用於縮放和平移
+            // 縮放功能
+            svg.call(d3.zoom().on("zoom", (event) => container.attr("transform", event.transform)));
 
-    // 2. 加載數據
-    d3.json("data.json").then(data => {
-        
-        // 力學模擬
-        const simulation = d3.forceSimulation(data.nodes)
-            .force("link", d3.forceLink(data.links).id(d => d.id).distance(100))
-            .force("charge", d3.forceManyBody().strength(-200))
-            .force("center", d3.forceCenter(width / 2, height / 2));
+            const simulation = d3.forceSimulation(data.nodes)
+                .force("link", d3.forceLink(data.links).id(d => d.id).distance(100))
+                .force("charge", d3.forceManyBody().strength(-200))
+                .force("center", d3.forceCenter(width / 2, height / 2));
 
-        // 繪製連線
-        const link = g.append("g")
-            .selectAll("line")
-            .data(data.links)
-            .join("line")
-            .attr("class", "link");
+            const link = container.append("g").selectAll("line").data(data.links).join("line").attr("class", "link");
 
-        // 繪製節點
-        const node = g.append("g")
-            .selectAll("circle")
-            .data(data.nodes)
-            .join("circle")
-            .attr("class", "node")
-            .attr("r", d => d.group === 0 ? 15 : (d.group === 1 ? 8 : 5))
-            .attr("fill", d => {
-                if(d.group === 0) return "#58a6ff"; // 中心
-                if(d.group === 1) return "#3fb950"; // 人類原始數據
-                return "#f59e0b"; // XoT 衍生節點
-            })
-            .on("click", (event, d) => handleNodeClick(d))
-            .call(d3.drag()
-                .on("start", dragstarted)
-                .on("drag", dragged)
-                .on("end", dragended));
+            const node = container.append("g").selectAll("circle").data(data.nodes).join("circle")
+                .attr("class", "node")
+                .attr("r", d => d.level === 0 ? 22 : (d.level === 1 ? 11 : 7))
+                .attr("fill", d => d.group === 0 ? "#58a6ff" : (d.group === 1 ? "#3fb950" : "#f59e0b"))
+                .on("click", (e, d) => focusNode(d))
+                .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
 
-        // 3. 點擊交互邏輯 (多模態面板更新)
-        function handleNodeClick(d) {
-            d3.select("#default-msg").style("display", "none");
-            d3.select("#details-view").style("display", "block");
+            function focusNode(d) {
+                if (d.group === 0) return;
+                document.getElementById("p-name").innerText = d.label;
+                document.getElementById("p-status").style.display = "none";
+                
+                let html = "";
+                const img = document.getElementById("p-sketch");
 
-            document.getElementById("display-name").innerText = d.label || d.id;
-            
-            // 更新文字描述
-            document.getElementById("display-feature").innerText = d.feature || "AI 衍生思考路徑，無原始描述。";
-            
-            // 更新草圖 (只有 group 1 的人有草圖)
-            const sketchImg = document.getElementById("display-sketch");
-            if(d.sketch) {
-                sketchImg.src = "../" + d.sketch; // 指向 data/sketches/
-                sketchImg.parentElement.style.display = "flex";
-            } else {
-                sketchImg.parentElement.style.display = "none";
+                if (d.group === 1) {
+                    html = `<p><span class="badge">人類原始創意</span></p>
+                            <div class="xot-card"><strong>設計特徵描述：</strong><br>${d.feature}</div>`;
+                    // 這裡的路徑需要根據你在 GitHub 上的實際圖片文件夾調整
+                    img.src = d.sketch; 
+                    img.style.display = "block";
+                } else {
+                    html = `<p><span class="badge" style="background:#f59e0b">XoT AI 演化</span></p>
+                            <div class="xot-card" style="border-color:#f59e0b"><strong>思維衍生路徑：</strong><br>${d.content}</div>`;
+                    img.style.display = "none";
+                }
+                document.getElementById("p-details").innerHTML = html;
             }
 
-            // 更新 XoT 推演邏輯內容
-            document.getElementById("display-xot").innerText = d.content || "正在追蹤此節點的思維起源...";
-        }
-
-        // 4. 更新位置
-        simulation.on("tick", () => {
-            link.attr("x1", d => d.source.x)
-                .attr("y1", d => d.source.y)
-                .attr("x2", d => d.target.x)
-                .attr("y2", d => d.target.y);
-
-            node.attr("cx", d => d.x)
-                .attr("cy", d => d.y);
+            simulation.on("tick", () => {
+                link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+                node.attr("cx", d => d.x).attr("cy", d => d.y);
+            });
         });
 
-        // 縮放功能
-        svg.call(d3.zoom().on("zoom", (event) => {
-            g.attr("transform", event.transform);
-        }));
-
-        // 拖拽函數
-        function dragstarted(event) {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            event.subject.fx = event.subject.x;
-            event.subject.fy = event.subject.y;
-        }
-        function dragged(event) {
-            event.subject.fx = event.x;
-            event.subject.fy = event.y;
-        }
-        function dragended(event) {
-            if (!event.active) simulation.alphaTarget(0);
-            event.subject.fx = null;
-            event.subject.fy = null;
-        }
-    });
-</script>
+        function dragstarted(event) { if (!event.active) simulation.alphaTarget(0.3).restart(); event.subject.fx = event.subject.x; event.subject.fy = event.subject.y; }
+        function dragged(event) { event.subject.fx = event.x; event.subject.fy = event.y; }
+        function dragended(event) { if (!event.active) simulation.alphaTarget(0); event.subject.fx = null; event.subject.fy = null; }
+    </script>
 </body>
 </html>
